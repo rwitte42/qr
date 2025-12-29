@@ -44,7 +44,7 @@ class QrApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title(APP_TITLE)
-        self.minsize(640, 520)
+        self.minsize(860, 520)
 
         self.mode = tk.StringVar(value="url")
 
@@ -54,6 +54,7 @@ class QrApp(tk.Tk):
 
         self._qr_photo: ImageTk.PhotoImage | None = None
         self._qr_image: Image.Image | None = None
+        self._qr_placeholder: ImageTk.PhotoImage | None = None
         self._is_resetting = False
 
         self._build_ui()
@@ -68,7 +69,20 @@ class QrApp(tk.Tk):
         title = ttk.Label(outer, text=APP_TITLE, font=("SF Pro Text", 18, "bold"))
         title.pack(anchor="w")
 
-        mode_row = ttk.Frame(outer, padding=(0, 10, 0, 0))
+        # Two-column layout: inputs/actions on the left, results on the right.
+        content = ttk.Frame(outer, padding=(0, 12, 0, 0))
+        content.pack(fill="both", expand=True)
+        content.columnconfigure(0, weight=1)
+        content.columnconfigure(1, weight=1)
+        content.rowconfigure(0, weight=1)
+
+        self.left_pane = ttk.Frame(content)
+        self.left_pane.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+
+        self.right_pane = ttk.Frame(content)
+        self.right_pane.grid(row=0, column=1, sticky="nsew")
+
+        mode_row = ttk.Frame(self.left_pane)
         mode_row.pack(fill="x")
 
         ttk.Radiobutton(mode_row, text="URL", value="url", variable=self.mode).pack(
@@ -78,15 +92,19 @@ class QrApp(tk.Tk):
             mode_row, text="E-mail", value="email", variable=self.mode
         ).pack(side="left")
 
-        self.url_frame = ttk.LabelFrame(outer, text="URL", padding=10)
-        self.url_frame.pack(fill="x", pady=(12, 0))
+        # Input area: only one form is visible at a time, but the area keeps a fixed height
+        # based on the larger of the two forms so the window doesn't resize on toggle.
+        self.input_stack = ttk.Frame(self.left_pane)
+        self.input_stack.pack(fill="x", pady=(12, 0))
+        self.input_stack.pack_propagate(False)
+
+        self.url_frame = ttk.LabelFrame(self.input_stack, text="URL", padding=10)
 
         ttk.Label(self.url_frame, text="URL (required)").pack(anchor="w")
         self.url_entry = ttk.Entry(self.url_frame, textvariable=self.url_var)
         self.url_entry.pack(fill="x", pady=(6, 0))
 
-        self.email_frame = ttk.LabelFrame(outer, text="E-mail", padding=10)
-        self.email_frame.pack(fill="x", pady=(12, 0))
+        self.email_frame = ttk.LabelFrame(self.input_stack, text="E-mail", padding=10)
 
         ttk.Label(self.email_frame, text="E-mail address (required)").pack(anchor="w")
         self.email_entry = ttk.Entry(self.email_frame, textvariable=self.email_var)
@@ -100,14 +118,21 @@ class QrApp(tk.Tk):
         self.body_text = tk.Text(self.email_frame, height=5, wrap="word")
         self.body_text.pack(fill="x", pady=(6, 0))
 
-        actions = ttk.Frame(outer, padding=(0, 14, 0, 0))
+        # Stack both frames in the same location; we "lift" the active one in _sync_mode.
+        # Important: make them fill the whole stack so the inactive one can't "peek" below.
+        self.url_frame.place(x=0, y=0, relwidth=1, relheight=1)
+        self.email_frame.place(x=0, y=0, relwidth=1, relheight=1)
+
+        # Compute and lock the input area height to the bigger of the two forms.
+        self.update_idletasks()
+        stack_h = max(self.url_frame.winfo_reqheight(), self.email_frame.winfo_reqheight()) + 2
+        self.input_stack.configure(height=stack_h)
+
+        actions = ttk.Frame(self.left_pane, padding=(0, 14, 0, 0))
         actions.pack(fill="x")
 
         self.generate_btn = ttk.Button(actions, text="Generate QR", command=self._on_generate)
         self.generate_btn.pack(side="left")
-
-        self.save_btn = ttk.Button(actions, text="Save PNG…", command=self._on_save)
-        self.save_btn.pack(side="left", padx=(10, 0))
 
         self.reset_btn = ttk.Button(actions, text="Reset", command=self._reset)
         self.reset_btn.pack(side="left", padx=(10, 0))
@@ -115,14 +140,30 @@ class QrApp(tk.Tk):
         self.quit_btn = ttk.Button(actions, text="Quit", command=self.destroy)
         self.quit_btn.pack(side="left", padx=(10, 0))
 
-        result = ttk.LabelFrame(outer, text="Result", padding=10)
-        result.pack(fill="both", expand=True, pady=(14, 0))
+        result = ttk.LabelFrame(self.right_pane, text="Result", padding=10)
+        result.pack(fill="both", expand=True)
+        result.columnconfigure(0, weight=1)
+        result.rowconfigure(1, weight=1)
 
-        self.value_label = ttk.Label(result, text="Encoded value will appear here.")
-        self.value_label.pack(anchor="w")
+        self.value_label = ttk.Label(result, text="Encoded value will appear here.", wraplength=360)
+        self.value_label.grid(row=0, column=0, sticky="w")
 
-        self.qr_label = ttk.Label(result)
-        self.qr_label.pack(pady=(12, 0))
+        # Reserve fixed space for the QR so the window doesn't jump around.
+        qr_size = 320
+        self._qr_placeholder = ImageTk.PhotoImage(Image.new("RGB", (qr_size, qr_size), "#f2f2f2"))
+
+        self.qr_box = ttk.Frame(result, width=qr_size + 20, height=qr_size + 20)
+        self.qr_box.grid(row=1, column=0, sticky="n", pady=(12, 0))
+        self.qr_box.grid_propagate(False)
+
+        self.qr_label = ttk.Label(self.qr_box, image=self._qr_placeholder)
+        self.qr_label.place(relx=0.5, rely=0.5, anchor="center")
+
+        result_actions = ttk.Frame(result, padding=(0, 12, 0, 0))
+        result_actions.grid(row=2, column=0, sticky="w")
+
+        self.save_btn = ttk.Button(result_actions, text="Save PNG…", command=self._on_save)
+        self.save_btn.pack(side="left")
 
     def _wire_events(self) -> None:
         self.mode.trace_add("write", lambda *_: self._on_mode_change())
@@ -141,15 +182,24 @@ class QrApp(tk.Tk):
         self._sync_buttons()
 
     def _sync_mode(self) -> None:
+        # Only show the active form, but keep the input area height constant.
         is_email = self.mode.get() == "email"
 
         if is_email:
-            self.url_frame.pack_forget()
-            self.email_frame.pack(fill="x", pady=(12, 0))
+            self.email_frame.lift()
+            self.url_entry.configure(state="disabled")
+
+            self.email_entry.configure(state="normal")
+            self.subject_entry.configure(state="normal")
+            self.body_text.configure(state="normal")
             self.email_entry.focus_set()
         else:
-            self.email_frame.pack_forget()
-            self.url_frame.pack(fill="x", pady=(12, 0))
+            self.url_frame.lift()
+            self.url_entry.configure(state="normal")
+
+            self.email_entry.configure(state="disabled")
+            self.subject_entry.configure(state="disabled")
+            self.body_text.configure(state="disabled")
             self.url_entry.focus_set()
 
     def _sync_buttons(self) -> None:
@@ -201,11 +251,16 @@ class QrApp(tk.Tk):
             self.url_var.set("")
             self.email_var.set("")
             self.subject_var.set("")
+            # Text widget may be disabled; temporarily enable to clear.
+            prev_state = str(self.body_text.cget("state"))
+            self.body_text.configure(state="normal")
             self.body_text.delete("1.0", "end")
+            self.body_text.configure(state=prev_state)
 
             self._qr_image = None
             self._qr_photo = None
-            self.qr_label.configure(image="")
+            if self._qr_placeholder is not None:
+                self.qr_label.configure(image=self._qr_placeholder)
             self.value_label.configure(text="Encoded value will appear here.")
         finally:
             self._is_resetting = False
