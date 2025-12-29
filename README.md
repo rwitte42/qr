@@ -3,6 +3,8 @@
 Simple macOS GUI QR generator that supports:
 - **URL**: enter a URL and generate a QR code
 - **E-mail**: generates a `mailto:` QR from e-mail (required) + optional subject/body
+- **Save PNG…**: save the most recently generated QR to a `.png`
+- **Reset**: clears the QR + resets fields (also happens automatically when switching URL/E-mail)
 
 ### Setup
 

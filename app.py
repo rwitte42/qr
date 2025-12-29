@@ -54,6 +54,7 @@ class QrApp(tk.Tk):
 
         self._qr_photo: ImageTk.PhotoImage | None = None
         self._qr_image: Image.Image | None = None
+        self._is_resetting = False
 
         self._build_ui()
         self._wire_events()
@@ -108,6 +109,9 @@ class QrApp(tk.Tk):
         self.save_btn = ttk.Button(actions, text="Save PNG…", command=self._on_save)
         self.save_btn.pack(side="left", padx=(10, 0))
 
+        self.reset_btn = ttk.Button(actions, text="Reset", command=self._reset)
+        self.reset_btn.pack(side="left", padx=(10, 0))
+
         self.quit_btn = ttk.Button(actions, text="Quit", command=self.destroy)
         self.quit_btn.pack(side="left", padx=(10, 0))
 
@@ -121,12 +125,20 @@ class QrApp(tk.Tk):
         self.qr_label.pack(pady=(12, 0))
 
     def _wire_events(self) -> None:
-        self.mode.trace_add("write", lambda *_: (self._sync_mode(), self._sync_buttons()))
+        self.mode.trace_add("write", lambda *_: self._on_mode_change())
         self.email_var.trace_add("write", lambda *_: self._sync_buttons())
         self.url_var.trace_add("write", lambda *_: self._sync_buttons())
 
         # Body text doesn't have a StringVar; listen for changes.
         self.body_text.bind("<KeyRelease>", lambda _e: self._sync_buttons())
+
+    def _on_mode_change(self) -> None:
+        # Requirement: toggling URL/E-mail should clear the QR + fields.
+        if self._is_resetting:
+            return
+        self._reset()
+        self._sync_mode()
+        self._sync_buttons()
 
     def _sync_mode(self) -> None:
         is_email = self.mode.get() == "email"
@@ -180,6 +192,23 @@ class QrApp(tk.Tk):
         self._qr_photo = ImageTk.PhotoImage(img)
         self.qr_label.configure(image=self._qr_photo)
         self.value_label.configure(text=value)
+        self._sync_buttons()
+
+    def _reset(self) -> None:
+        # Clear fields + QR preview/value, keep current mode selected.
+        self._is_resetting = True
+        try:
+            self.url_var.set("")
+            self.email_var.set("")
+            self.subject_var.set("")
+            self.body_text.delete("1.0", "end")
+
+            self._qr_image = None
+            self._qr_photo = None
+            self.qr_label.configure(image="")
+            self.value_label.configure(text="Encoded value will appear here.")
+        finally:
+            self._is_resetting = False
         self._sync_buttons()
 
     def _on_save(self) -> None:
