@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QR Code Generator</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: Canvas;
+        color: CanvasText;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 18px;
+      }
+      .card {
+        border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+        border-radius: 12px;
+        padding: 18px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 10px 0;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        opacity: 0.9;
+        margin-bottom: 6px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
+        background: color-mix(in srgb, Canvas 92%, CanvasText 8%);
+        color: CanvasText;
+      }
+      textarea {
+        min-height: 110px;
+        resize: vertical;
+      }
+      .modes {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin: 10px 0 14px 0;
+      }
+      .modes label {
+        margin: 0;
+        font-size: 14px;
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+      }
+      button {
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 0;
+        background: #2563eb;
+        color: white;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .danger {
+        background: #b91c1c;
+      }
+      .error {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: color-mix(in srgb, #ef4444 18%, transparent);
+        border: 1px solid color-mix(in srgb, #ef4444 40%, transparent);
+      }
+      .result {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        align-items: start;
+      }
+      .qr {
+        display: grid;
+        place-items: center;
+        padding: 14px;
+        border-radius: 12px;
+        border: 1px dashed color-mix(in srgb, CanvasText 24%, transparent);
+      }
+      .qr img {
+        width: min(320px, 100%);
+        height: auto;
+        image-rendering: pixelated;
+      }
+      code {
+        word-break: break-word;
+      }
+      @media (min-width: 900px) {
+        .wrap {
+          grid-template-columns: 1.1fr 0.9fr;
+          align-items: start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>QR Code Generator</h1>
+        <form method="post" action="/generate" id="qrForm">
+          <div class="modes">
+            <label>
+              <input
+                type="radio"
+                name="mode"
+                value="url"
+                {% if (mode or 'url') == 'url' %}checked{% endif %}
+              />
+              URL
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="mode"
+                value="email"
+                {% if mode == 'email' %}checked{% endif %}
+              />
+              E-mail
+            </label>
+          </div>
+
+          <div id="urlFields" class="row">
+            <div>
+              <label for="url">URL</label>
+              <input
+                id="url"
+                name="url"
+                type="url"
+                placeholder="https://example.com"
+                value="{{ (form.url if form else '') }}"
+              />
+            </div>
+          </div>
+
+          <div id="emailFields" class="row" style="display: none">
+            <div>
+              <label for="email">E-mail address (required)</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="name@example.com"
+                value="{{ (form.email if form else '') }}"
+                required
+              />
+            </div>
+            <div>
+              <label for="subject">Subject (optional)</label>
+              <input
+                id="subject"
+                name="subject"
+                type="text"
+                value="{{ (form.subject if form else '') }}"
+              />
+            </div>
+            <div>
+              <label for="body">Body (optional)</label>
+              <textarea id="body" name="body">{{ (form.body if form else '') }}</textarea>
+            </div>
+          </div>
+
+          <div style="margin-top: 14px; display: flex; gap: 10px; align-items: center">
+            <button type="submit" id="submitBtn">Generate QR</button>
+            <button type="button" id="quitBtn" class="danger">Quit</button>
+          </div>
+
+          {% if error %}
+          <div class="error">{{ error }}</div>
+          {% endif %}
+        </form>
+      </div>
+
+      <div class="card">
+        <h1>Result</h1>
+        {% if qr_data_url %}
+        <div class="result">
+          <div class="qr">
+            <img src="{{ qr_data_url }}" alt="Generated QR code" />
+          </div>
+          <div>
+            <div style="font-size: 13px; opacity: 0.85; margin-bottom: 6px">
+              Encoded value
+            </div>
+            <code>{{ qr_value }}</code>
+            <div style="margin-top: 10px; font-size: 13px; opacity: 0.8">
+              Tip: right-click the QR to save the image.
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div style="opacity: 0.8; font-size: 14px">
+          Pick URL or E-mail, fill the form, and generate a QR code.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <script>
+      const urlFields = document.getElementById("urlFields");
+      const emailFields = document.getElementById("emailFields");
+      const modeInputs = document.querySelectorAll('input[name="mode"]');
+      const emailInput = document.getElementById("email");
+      const urlInput = document.getElementById("url");
+      const submitBtn = document.getElementById("submitBtn");
+
+      function currentMode() {
+        const checked = document.querySelector('input[name="mode"]:checked');
+        return checked ? checked.value : "url";
+      }
+
+      function setMode(mode) {
+        if (mode === "email") {
+          emailFields.style.display = "";
+          urlFields.style.display = "none";
+          emailInput.required = true;
+          urlInput.required = false;
+          validate();
+        } else {
+          emailFields.style.display = "none";
+          urlFields.style.display = "";
+          emailInput.required = false;
+          urlInput.required = true;
+          submitBtn.disabled = false;
+        }
+      }
+
+      function validate() {
+        if (currentMode() !== "email") return;
+        submitBtn.disabled = !(emailInput.value || "").trim();
+      }
+
+      modeInputs.forEach((el) =>
+        el.addEventListener("change", (e) => setMode(e.target.value))
+      );
+      emailInput.addEventListener("input", validate);
+
+      // Initialize on load
+      setMode(currentMode());
+
+      // Quit button: ask for confirmation then POST /shutdown
+      const quitBtn = document.getElementById("quitBtn");
+      quitBtn.addEventListener("click", async () => {
+        const ok = window.confirm("Quit the QR app?");
+        if (!ok) return;
+        try {
+          const res = await fetch("/shutdown", { method: "POST" });
+          const html = await res.text();
+          document.open();
+          document.write(html);
+          document.close();
+        } catch (e) {
+          window.alert("Failed to quit the app. (Is it running locally?)");
+        }
+      });
+    </script>
+  </body>
+</html>
+
+
+
