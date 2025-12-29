@@ -22,6 +22,19 @@ python app.py
 
 This will open a native window. Use the **Quit** button to exit.
 
+### Build a macOS `.app` (double-clickable)
+
+This uses [PyInstaller](https://pyinstaller.org/) to build a local `.app` bundle:
+
+```bash
+./scripts/build_macos_app.sh
+```
+
+Output:
+- `dist/QR Code Generator.app`
+
+Note: the built app is **unsigned**. If macOS Gatekeeper blocks it, right-click → **Open**.
+
 ### (Optional) Web version
 
 If you want the previous browser-based version, it’s preserved as:
