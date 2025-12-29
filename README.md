@@ -35,6 +35,28 @@ Output:
 
 Note: the built app is **unsigned**. If macOS Gatekeeper blocks it, right-click → **Open**.
 
+### Bundle ID, icon, signing, notarization (optional)
+
+- **Bundle ID**:
+
+```bash
+QR_BUNDLE_ID="com.rwitte42.qr" ./scripts/build_macos_app.sh
+```
+
+- **Icon** (provide a `.icns`):
+
+```bash
+QR_ICON_ICNS="/absolute/path/to/icon.icns" ./scripts/build_macos_app.sh
+```
+
+- **Sign + notarize** (requires Apple Developer account):
+
+```bash
+SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+NOTARY_PROFILE="your-notarytool-profile" \
+./scripts/sign_and_notarize_macos_app.sh
+```
+
 ### (Optional) Web version
 
 If you want the previous browser-based version, it’s preserved as:
