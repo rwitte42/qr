@@ -57,17 +57,3 @@ NOTARY_PROFILE="your-notarytool-profile" \
 ./scripts/sign_and_notarize_macos_app.sh
 ```
 
-### (Optional) Web version
-
-If you want the previous browser-based version, it’s preserved as:
-
-```bash
-python -m pip install Flask==3.1.0
-python web_app.py
-```
-
-Then open `http://127.0.0.1:8000`.
-
-
-
-
